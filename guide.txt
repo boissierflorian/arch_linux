@@ -1,0 +1,149 @@
+Tuto installation Arch-Linux x86_64 (UEFI)
+
+##############################################################
+## Préparation Clé USB
+##############################################################
+
+- Télécharger le dernier ISO en date.
+- Installer <Cygwin> (Utilitaires/Commandes Linux sous Windows)
+	- Avec le paquet <dd>
+- Déplacer l'ISO dans le répertoire home du cygwin
+- Lancer Cygwin en tant qu'administrateur
+
+# dd if=<image.iso> of=\\.\[x]: bs=4M
+	- <x> correspond à la lettre associée à la clef
+# cat /proc/partitions
+# dd if=<image.iso> of=/dev/<sdx> bs=4M
+
+##############################################################
+## Partie Live-CD
+##############################################################
+
+# loadkeys fr-pc
+
+# ls /sys/firmware/efi/efivars
+	- Aucune sortie: BIOS sinon UEFI
+
+# ping archlinux.org
+	- Sans-fil: iw, wpa_supplicant, netcl
+
+# timedatectl set-timezone Europe/Paris
+# timedatectl set-ntp true
+
+##############################################################
+## Partionnement
+##############################################################
+
+- Entrer dans le mode fdisk sur le disque
+# fdisk /dev/sd<?>
+
+- Créer les partitions suivantes:
+	/dev/sda1 pour /boot/efi (300 Mo) Type (EFI System)
+	/dev/sda2 pour la swap
+	/dev/sda3 pour / (35 Go)
+	/dev/sda4 /home
+
+# mkfs.fat -F32 /dev/sd<?> -L /boot/efi
+	# mkfs.fat -s<1|2> -F32 /dev/sd<?> (En cas d'erreur)
+# mkswap /dev/sda2
+# swapon /dev/sda2
+# mkfs.ext4 /dev/sda3 -L /
+# mkfs.ext4 /dev/sda4 -L /home
+
+# mount /dev/sda3 /mnt
+# mkdir /mnt/home && mount /dev/sda4 /mnt/home
+# mkdir -p /mnt/boot/efi && mount -t vfat /dev/sda1 /mnt/boot/efi
+
+##############################################################
+## Installation du système de base
+##############################################################
+
+- Mirroirs
+# cp /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.backup
+# sed -s 's/^#Server/Server/' /etc/pacman.d/mirrorlist.backup
+# rankmirrors -n 10 /etc/pacman.d/mirrorlist.backup > /etc/pacman.d/mirrorlist
+
+- Paquets de base
+# pacstrap /mnt base base-devel
+
+- Paquets (Système plus complet avec la gestion du son)
+# pacstrap /mnt zip unzip p7zip vim mc alsa-utils syslog-ng
+
+- Génération des points de montage
+# genfstab -U -p /mnt >> /mnt/etc/fstab
+
+- Loader
+# pacstrap /mnt grub
+
+# arch-chroot /mnt
+# echo NomDeLaMachine > /etc/hostname
+# echo '127.0.1.1 NomDeLaMachine.localdomain NomDeLaMachine' >> /etc/hosts
+# rm -f /etc/localtime
+# ln -s /usr/share/zoneinfo/Europe/Paris /etc/localtime
+# locale-gen
+# echo LANG="fr_FR.UTF-8" > /etc/locale.conf
+# export LANG=fr_FR.UTF-8
+# echo KEYMAP=fr > /etc/vconsole.conf
+# hwclock --systohc --utc
+# mkinitcpio -p linux
+# passwd
+# pacman -S networkmanager
+# systemctl enable NetworkManager.service
+
+##############################################################
+## Grub
+##############################################################
+
+# pacman -S grub
+# Voir wiki
+
+##############################################################
+## Configuration du wifi
+##############################################################
+
+# pacman -S dialog wpa_supplicant
+# pacman -S iw
+# pacman -S wireless_tools
+
+- Installer yaourt
+- Ajouter à /etc/pacman.conf puis supprimer
+[archlinuxfr]
+SigLevel = Optional TrustAll
+Server = http://repo.archlinux.fr/$arch
+- pacman -S yaourt
+
+- Démarrer le tout
+# exit
+# umount -R /mnt
+
+##############################################################
+## Redémarrage
+##############################################################
+
+- Configuration du son
+# alsamixer
+# alsactl store
+
+- Xorg
+# yaourt -S xorg xorg-server xorg-xinit xorg-xmessage xorg-utils xf86-input-mouse
+
+- Polices
+# yaourt -S ttf-bitstream-vera ttf-liberation ttf-freefont ttf-dejavu ttf-ms-fonts
+
+- Ajout d'un utilisateur
+# useradd -m -g users -G wheel -s /bin/bash nom-de-l’utilisateur
+# passwd nom-de-l’utilisateur
+
+- Couche intermédiaire
+# yaourt -S gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly
+# yaourt -S cups gimp hplip ntp xsane unoconv
+# yaourt -S firefox-i18n-fr flashplugin
+# yaourt -S chromium
+
+- Activation de services
+systemctl enable syslog-ng.service
+systemctl enable cronie.service
+systemctl enable avahi-daemon.service
+systemctl enable avahi-dnsconfd.service
+systemctl enable cups.service
+systemctl enable ntpd.service
