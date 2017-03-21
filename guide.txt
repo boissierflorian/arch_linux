@@ -75,6 +75,10 @@ Tuto installation Arch-Linux x86_64 (UEFI)
 - Loader
 # pacstrap /mnt grub
 
+##############################################################
+## Chroot
+##############################################################
+
 # arch-chroot /mnt
 # echo NomDeLaMachine > /etc/hostname
 # echo '127.0.1.1 NomDeLaMachine.localdomain NomDeLaMachine' >> /etc/hosts
@@ -85,7 +89,58 @@ Tuto installation Arch-Linux x86_64 (UEFI)
 # export LANG=fr_FR.UTF-8
 # echo KEYMAP=fr > /etc/vconsole.conf
 # hwclock --systohc --utc
-# mkinitcpio -p linux
+
+##############################################################
+## Automatisation des fichiers de boot dans L'ESP
+##############################################################
+
+- Modifier le fichier /etc/mkinitcpio.d/linux.preset 
+
+	# mkinitcpio preset file for the 'linux' package
+
+	# Directory to copy the kernel, the initramfs...
+	ESP_DIR="/boot/efi/EFI/arch"
+
+	ALL_config="/etc/mkinitcpio.conf"
+	ALL_kver="/boot/vmlinuz-linux"
+
+	PRESETS=('default' 'fallback')
+
+	#default_config="/etc/mkinitcpio.conf"
+	default_image="${ESP_DIR}/initramfs-linux.img"
+	default_options="-A esp-update-linux"
+
+	#fallback_config="/etc/mkinitcpio.conf"
+	fallback_image="${ESP_DIR}/initramfs-linux-fallback.img"
+	fallback_options="-S autodetect"
+
+- Créer /usr/lib/initcpio/install/esp-update-linux
+	# Directory to copy the kernel, the initramfs...
+	ESP_DIR="/boot/efi/EFI/arch"
+
+	build() {
+		cp /boot/vmlinuz-linux "${ESP_DIR}/vmlinuz-linux.efi"
+		# ligne pour la copie du ucode si utilisé...
+		[[ -f /boot/intel-ucode.img ]] && mv /boot/intel-ucode.img "${ESP_DIR}/"
+	}
+
+	help() {
+		cat <<HELPEOF
+	Ce hook copie le kernel dans la partition ESP
+	HELPEOF
+	}
+
+# chmod +x /usr/lib/initcpio/install/esp-update-linux
+
+- Test
+rm /boot/initramfs-linux-fallback.img
+rm /boot/initramfs-linux.img
+mkinitcpio -p linux
+
+##############################################################
+## Finitions
+##############################################################
+
 # passwd
 # pacman -S networkmanager
 # systemctl enable NetworkManager.service
@@ -95,7 +150,27 @@ Tuto installation Arch-Linux x86_64 (UEFI)
 ##############################################################
 
 # pacman -S grub
-# Voir wiki
+
+- Monter la partition EFI si ce n'est pas déjà fait
+# mkdir -p /boot/efi
+# mount -t vfat /dev/sdXY /boot/efi
+
+- Créer le répertoire /boot/efi/EFI
+# mkdir -p /boot/efi/EFI
+
+- Application UEFI Grub
+# grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=arch_grub --recheck /dev/sda
+
+# grub-mkconfig -o /boot/grub/grub.cfg
+
+- Ajouter la disposition clavier française >> /boot/grub/grub.cfg
+	insmod keylayouts
+ 	keymap /boot/grub/fr.gkb
+ 	terminal_input at_keyboard 
+
+- Régénération du grub
+# grub-mkconfig -o /boot/grub/grub.cfg
+
 
 ##############################################################
 ## Configuration du wifi
